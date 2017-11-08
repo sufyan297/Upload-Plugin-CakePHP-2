@@ -1687,9 +1687,15 @@ class UploadBehavior extends ModelBehavior {
                 $this->settings[$model->alias][$field]['aws']['original_upload'] == true) {
                 //Resize Success
                 $thumb_image_name = $this->runtime[$model->alias][$field]['name'];
-                $s3_file_path = Inflector::underscore($model->alias)."/".$field."/".$model->id."/".$thumb_image_name;
 
                 $path_to_file = $thumbnailPath.$thumb_image_name;
+                if (isset($this->settings[$model->alias][$field]['aws']['prefix_path']) && $this->settings[$model->alias][$field]['aws']['prefix_path'] == '/') {
+                    $s3_file_path = Inflector::underscore($model->alias)."/".$field."/".$model->id."/".$thumb_image_name;
+                } else if (!isset($this->settings[$model->alias][$field]['aws']['prefix_path'])) {
+                    $s3_file_path = Inflector::underscore($model->alias)."/".$field."/".$model->id."/".$thumb_image_name;
+                } else {
+                    $s3_file_path = $this->settings[$model->alias][$field]['aws']['prefix_path'].Inflector::underscore($model->alias)."/".$field."/".$model->id."/".$thumb_image_name;
+                }
                 $this->upload($this->settings[$model->alias][$field]['aws'], $s3_file_path, $path_to_file);
             }
 
