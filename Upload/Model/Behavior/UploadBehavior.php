@@ -375,6 +375,15 @@ class UploadBehavior extends ModelBehavior {
 			));
 		}
 
+        //After Uploading to S3 Remove Local copy
+        if (isset($this->settings[$model->alias][$field]['aws']) &&
+            isset($this->settings[$model->alias][$field]['storagePath']) &&
+            $this->settings[$model->alias][$field]['storagePath'] == 's3') {
+                //finally delete folder
+                gc_collect_cycles(); //S3 Holds resources so we have to tell gc to release those resources so that we can remove it.
+                $this->recursive_rmdir($path);
+            }
+
 		if (empty($this->__filesToRemove[$model->alias])) {
 			return true;
 		}
@@ -396,6 +405,25 @@ class UploadBehavior extends ModelBehavior {
 	public function unlink($file) {
 		return unlink($file);
 	}
+
+    /**
+    *   Recursively remove everything from dir.
+    *
+    */
+    private function recursive_rmdir($dir) {
+      if( is_dir($dir) ) {
+        $objects = array_diff( scandir($dir), array('..', '.') );
+        foreach ($objects as $object) {
+          $objectPath = $dir."/".$object;
+          if( is_dir($objectPath) )
+            recursive_rmdir($objectPath);
+          else
+            unlink($objectPath);
+        }
+        rmdir($dir);
+      }
+    }
+
 
 	public function deleteFolder(Model $model, $path) {
 		if (!isset($this->__foldersToRemove[$model->alias])) {
@@ -1539,7 +1567,6 @@ class UploadBehavior extends ModelBehavior {
      */
     private function _connect($aws = null)
     {
-        pr($aws);
         return $client = S3Client::factory(
             array(
                 'version' => 'latest',
@@ -1648,8 +1675,6 @@ class UploadBehavior extends ModelBehavior {
                         }
 
                         $this->upload($this->settings[$model->alias][$field]['aws'], $s3_file_path, $path_to_file);
-
-
                     }
                 }
 			}
@@ -1667,15 +1692,6 @@ class UploadBehavior extends ModelBehavior {
                 $path_to_file = $thumbnailPath.$thumb_image_name;
                 $this->upload($this->settings[$model->alias][$field]['aws'], $s3_file_path, $path_to_file);
             }
-
-            //0-0-0-0--
-            //After Uploading Remove Local copy
-            if (isset($this->settings[$model->alias][$field]['aws']) &&
-                isset($this->settings[$model->alias][$field]['storagePath']) &&
-                $this->settings[$model->alias][$field]['storagePath'] == 's3') {
-                    $this->deleteFolder($model, $path);
-                }
-
 
 		}
 	}
