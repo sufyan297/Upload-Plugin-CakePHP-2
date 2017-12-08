@@ -460,25 +460,60 @@ class UploadBehavior extends ModelBehavior {
 			'recursive' => -1,
 		));
 
-		foreach ($this->settings[$model->alias] as $field => $options) {
-			$this->_prepareFilesForDeletion($model, $field, $data, $options);
+		//getField (image_file)
+		$field = null;
+		foreach ($this->settings[$model->alias] as $key => $options) {
+			$field = $key;
+			break;
+		}
+					
+		if (isset($this->settings[$model->alias][$field]['aws']) &&
+		isset($this->settings[$model->alias][$field]['storagePath']) &&
+		$this->settings[$model->alias][$field]['storagePath'] == 's3') {
+			//Do Nothing Right Now. -= we will handle deletion from S3 Later.
+		} else {
+			//IF Storage Local selected.			
+			foreach ($this->settings[$model->alias] as $field => $options) {
+				$this->_prepareFilesForDeletion($model, $field, $data, $options);
+			}
 		}
 		return true;
 	}
 
 	public function afterDelete(Model $model) {
 		$result = array();
-		if (!empty($this->__filesToRemove[$model->alias])) {
-			foreach ($this->__filesToRemove[$model->alias] as $i => $file) {
-				$result[] = $this->unlink($file);
-				unset($this->__filesToRemove[$model->alias][$i]);
-			}
-		}
 
-		foreach ($this->settings[$model->alias] as $field => $options) {
-			if ($options['deleteFolderOnDelete'] == true) {
-				$this->deleteFolder($model, $options['path']);
-				return true;
+		//getField (image_file)
+		$field = null;
+		foreach ($this->settings[$model->alias] as $key => $options) {
+			$field = $key;
+			break;
+		}
+		
+		if (isset($this->settings[$model->alias][$field]['aws']) &&
+		isset($this->settings[$model->alias][$field]['storagePath']) &&
+		$this->settings[$model->alias][$field]['storagePath'] == 's3') {
+			//Do Nothing Right Now. -= we will handle deletion from S3 Later.
+			if (isset($this->__foldersToRemove[$model->alias])) {
+				//Folders TO Remove
+				// pr($this->__foldersToRemove[$model->alias]); die();
+			}
+	
+		} else {
+			//IF Storage Local selected.
+			if (!empty($this->__filesToRemove[$model->alias])) {
+				foreach ($this->__filesToRemove[$model->alias] as $i => $file) {
+					$result[] = $this->unlink($file);
+					unset($this->__filesToRemove[$model->alias][$i]);
+				}
+			}
+
+
+			foreach ($this->settings[$model->alias] as $field => $options) {
+				if ($options['deleteFolderOnDelete'] == true) {
+					$this->deleteFolder($model, $options['path']);
+					return true;
+				}
 			}
 		}
 		return $result;
@@ -1216,10 +1251,21 @@ class UploadBehavior extends ModelBehavior {
 				$resizeH = $destH;
 			}
 
+			$canvas_color_r = 255;
+			$canvas_color_g = 255;
+			$canvas_color_b = 255;
+
+			if (isset($this->settings[$model->alias][$field]['canvas_background'])) {
+				$canvas_color_r = $this->settings[$model->alias][$field]['canvas_background']['r'];
+				$canvas_color_g = $this->settings[$model->alias][$field]['canvas_background']['g'];
+				$canvas_color_b = $this->settings[$model->alias][$field]['canvas_background']['b'];
+			}
+			
+
 			$img = imagecreatetruecolor($destW, $destH);
 			imagealphablending($img, false);
 			imagesavealpha($img, true);
-			imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
+			imagefill($img, 0, 0, imagecolorallocate($img, $canvas_color_r, $canvas_color_g, $canvas_color_b));
 			imagecopyresampled($img, $src, ($destW - $resizeW) / 2, ($destH - $resizeH) / 2, 0, 0, $resizeW, $resizeH, $srcW, $srcH);
 
 			if ($supportsThumbnailQuality) {
@@ -1685,7 +1731,10 @@ class UploadBehavior extends ModelBehavior {
             //=--==-=-
             //if Original Image is true = Upload Original
             if (isset($this->settings[$model->alias][$field]['aws']['original_upload']) &&
-                $this->settings[$model->alias][$field]['aws']['original_upload'] == true) {
+				$this->settings[$model->alias][$field]['aws']['original_upload'] == true &&
+				isset($this->settings[$model->alias][$field]['aws']) &&
+				isset($this->settings[$model->alias][$field]['storagePath']) &&
+				$this->settings[$model->alias][$field]['storagePath'] == 's3') {
                 //Resize Success
                 $thumb_image_name = $this->runtime[$model->alias][$field]['name'];
 
